@@ -76,7 +76,7 @@ fn add_changeset(command: &AddCommand) {
 }
 
 fn get_version() -> Version {
-    let ver = plugin::get_version_via_plugin(".changeset/version");
+    let ver = plugin::get_version_via_plugin();
     match ver {
         Ok(v) => {
             println!("Version: {}", v);
@@ -90,7 +90,7 @@ fn get_version() -> Version {
 }
 
 fn version_command() {
-    let current_version = plugin::get_version_via_plugin(".changeset/version").unwrap();
+    let current_version = plugin::get_version_via_plugin().unwrap();
     let changesets = changeset::get_changesets().unwrap();
     let bump_type = changeset::determine_final_bump_type(&changesets).unwrap();
     match bump_type {
