@@ -1,0 +1,21 @@
+[package]
+name = "changeset"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.87"
+clap = { version = "4.5.17", features = ["derive"] }
+cliclack = "0.3.4"
+extism = "1.6.0"
+rand = "0.8.5"
+semver = "1.0.23"
+
+[profile.release]
+lto = true
+
+[profile.dev]
+incremental = true
+
+[lints.clippy]
+needless-return = "allow"
