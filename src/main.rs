@@ -72,7 +72,10 @@ fn add_changeset(command: &AddCommand) {
             .unwrap()
     });
 
-    let _ = changeset::create_change_file(increment_type.to_increment_type(), message.as_str());
+    let change_file =
+        changeset::create_change_file(increment_type.to_increment_type(), message.as_str())
+            .unwrap();
+    println!("Changeset created at: {}", change_file.display());
 }
 
 fn get_version() -> Version {
