@@ -35,6 +35,26 @@ impl Display for IncrementType {
     }
 }
 
+impl PartialOrd for IncrementType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IncrementType {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (IncrementType::Major, IncrementType::Major) => std::cmp::Ordering::Equal,
+            (IncrementType::Major, _) => std::cmp::Ordering::Greater,
+            (IncrementType::Minor, IncrementType::Minor) => std::cmp::Ordering::Equal,
+            (IncrementType::Minor, IncrementType::Major) => std::cmp::Ordering::Less,
+            (IncrementType::Minor, _) => std::cmp::Ordering::Greater,
+            (IncrementType::Patch, IncrementType::Patch) => std::cmp::Ordering::Equal,
+            (IncrementType::Patch, _) => std::cmp::Ordering::Less,
+        }
+    }
+}
+
 pub trait Bump {
     fn bump_major(&self) -> Version;
     fn bump_minor(&self) -> Version;
@@ -163,31 +183,18 @@ pub fn get_changesets() -> anyhow::Result<Vec<Change>> {
     Ok(changesets)
 }
 
-pub fn determine_final_bump_type(
-    changesets: &Vec<Change>,
-) -> anyhow::Result<Option<IncrementType>> {
-    // if any changeset has a major bump, return major
-    for changeset in changesets {
-        if changeset.bump_type == IncrementType::Major {
-            return Ok(Some(IncrementType::Major));
-        }
+pub fn determine_final_bump_type(changesets: &[Change]) -> anyhow::Result<Option<IncrementType>> {
+    if changesets.is_empty() {
+        return Ok(None);
     }
-    for changeset in changesets {
-        if changeset.bump_type == IncrementType::Minor {
-            return Ok(Some(IncrementType::Minor));
-        }
-    }
-    for changeset in changesets {
-        if changeset.bump_type == IncrementType::Patch {
-            return Ok(Some(IncrementType::Patch));
-        }
-    }
-    return Ok(None);
+    let max_bump_type = changesets.iter().map(|c| &c.bump_type).max().cloned();
+
+    Ok(max_bump_type)
 }
 
 pub fn determine_next_version(
     current_version: &Version,
-    changesets: &Vec<Change>,
+    changesets: &[Change],
 ) -> anyhow::Result<Version> {
     let bump_type = determine_final_bump_type(changesets)?;
     match bump_type {
@@ -205,4 +212,57 @@ pub fn consume_changesets(
         std::fs::remove_file(changeset.file_path)?;
     }
     Ok(new_version)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(vec![
+        Change {
+            bump_type: IncrementType::Major,
+            file_path: PathBuf::new(),
+        },
+        Change {
+            bump_type: IncrementType::Minor,
+            file_path: PathBuf::new(),
+        },
+        Change {
+            bump_type: IncrementType::Patch,
+            file_path: PathBuf::new(),
+        },
+    ], Some(IncrementType::Major))]
+    #[case(vec![
+        Change {
+            bump_type: IncrementType::Minor,
+            file_path: PathBuf::new(),
+        },
+        Change {
+            bump_type: IncrementType::Minor,
+            file_path: PathBuf::new(),
+        },
+        Change {
+            bump_type: IncrementType::Patch,
+            file_path: PathBuf::new(),
+        },
+    ], Some(IncrementType::Minor))]
+    #[case(vec![
+        Change {
+            bump_type: IncrementType::Patch,
+            file_path: PathBuf::new(),
+        },
+        Change {
+            bump_type: IncrementType::Patch,
+            file_path: PathBuf::new(),
+        },
+    ], Some(IncrementType::Patch))]
+    fn test_determine_final_bump_type_selects_correct_bump_type(
+        #[case] input: Vec<Change>,
+        #[case] expected: Option<IncrementType>,
+    ) {
+        let result = determine_final_bump_type(&input).unwrap();
+        assert_eq!(result, expected);
+    }
 }
