@@ -146,8 +146,9 @@ pub fn create_change_file(bump_type: IncrementType, message: &str) -> anyhow::Re
 
     let mut file = std::fs::File::create(filepath.clone())?;
 
-    file.write_all(
-        format!("---\n{CHANGESET_FILE_KEY}: {bump_type}\n---\n\n# {message}\n").as_bytes(),
+    write!(
+        file,
+        "---\n{CHANGESET_FILE_KEY}: {bump_type}\n---\n\n# {message}\n",
     )?;
 
     Ok(filepath)
@@ -220,7 +221,7 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case(vec![
+    #[case::major(vec![
         Change {
             bump_type: IncrementType::Major,
             file_path: PathBuf::new(),
@@ -234,7 +235,7 @@ mod tests {
             file_path: PathBuf::new(),
         },
     ], Some(IncrementType::Major))]
-    #[case(vec![
+    #[case::minor(vec![
         Change {
             bump_type: IncrementType::Minor,
             file_path: PathBuf::new(),
@@ -248,7 +249,7 @@ mod tests {
             file_path: PathBuf::new(),
         },
     ], Some(IncrementType::Minor))]
-    #[case(vec![
+    #[case::patch(vec![
         Change {
             bump_type: IncrementType::Patch,
             file_path: PathBuf::new(),
