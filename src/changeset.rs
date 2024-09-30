@@ -1,7 +1,55 @@
 use rand::seq::SliceRandom;
 use semver::Version;
-use std::io::Read;
+use std::fs::File;
+use std::io::{self, Read, Seek};
 use std::{fmt::Display, io::Write, path::PathBuf};
+
+const NAMES: [&str; 39] = [
+    "dog",
+    "arnold",
+    "cat",
+    "kitten",
+    "puppy",
+    "armadillo",
+    "giraffe",
+    "happy",
+    "sad",
+    "emotional",
+    "earth",
+    "mars",
+    "car",
+    "robot",
+    "whale",
+    "python",
+    "snake",
+    "lizard",
+    "bird",
+    "eagle",
+    "hawk",
+    "falcon",
+    "owl",
+    "parrot",
+    "penguin",
+    "dolphin",
+    "shark",
+    "fish",
+    "whale",
+    "octopus",
+    "squid",
+    "jellyfish",
+    "starfish",
+    "seahorse",
+    "seal",
+    "otter",
+    "beaver",
+    "squirrel",
+    "chipmunk",
+];
+
+const CHANGE_NAME_PARTS: i8 = 3;
+const CHANGESET_DIRECTORY: &str = ".changeset";
+const CHANGESET_FILE_KEY: &str = "changeset/type";
+const CHANGELOG_FILENAME: &str = "CHANGELOG.md";
 
 #[derive(Debug, PartialEq, Clone, Eq)]
 pub enum IncrementType {
@@ -98,29 +146,6 @@ impl Bump for Version {
     }
 }
 
-const NAMES: [&str; 16] = [
-    "dog",
-    "arnold",
-    "cat",
-    "kitten",
-    "puppy",
-    "armadillo",
-    "giraffe",
-    "happy",
-    "sad",
-    "emotional",
-    "earth",
-    "mars",
-    "car",
-    "robot",
-    "whale",
-    "python",
-];
-
-const CHANGE_NAME_PARTS: i8 = 3;
-const CHANGESET_DIRECTORY: &str = ".changeset";
-const CHANGESET_FILE_KEY: &str = "changeset/type";
-
 #[derive(Debug, Clone)]
 pub struct Change {
     pub bump_type: IncrementType,
@@ -209,10 +234,72 @@ pub fn consume_changesets(
     changesets: Vec<Change>,
 ) -> anyhow::Result<Version> {
     let new_version = determine_next_version(current_version, &changesets)?;
-    for changeset in changesets {
-        std::fs::remove_file(changeset.file_path)?;
-    }
+
+    changesets.iter().for_each(|c| {
+        std::fs::remove_file(&c.file_path).unwrap();
+    });
+
     Ok(new_version)
+}
+
+pub fn generate_changelog_contents(next_version: &Version, changesets: &[Change]) -> String {
+    let mut contents = format!("## {next_version}\n\n", next_version = next_version);
+
+    for _ in changesets {
+        contents.push_str("- \n");
+    }
+
+    contents
+}
+
+/// Inserts the contents before the **first** line that starts with `search`
+fn insert_before(contents: &str, search: &str, insertable: &str) -> String {
+    let mut found = false;
+    let mut result = String::new();
+
+    for line in contents.lines() {
+        if line.starts_with(search) && !found {
+            found = true;
+            result.push_str(insertable);
+        }
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    if !found {
+        result.push_str(insertable);
+        result.push('\n');
+    }
+
+    result
+}
+
+/// Creates, or updates a CHANGELOG.md file with the contents of the changesets
+pub fn generate_changelog(next_version: &Version, changesets: &[Change]) -> anyhow::Result<()> {
+    let file_exists = PathBuf::from(CHANGELOG_FILENAME).exists();
+    let mut contents = String::new();
+    if !file_exists {
+        contents.push_str("# Changelog\n\n");
+    }
+    let mut file = File::options()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(CHANGELOG_FILENAME)?;
+
+    file.seek(io::SeekFrom::Start(0))?;
+
+    file.read_to_string(&mut contents)?;
+
+    let contents_to_insert = generate_changelog_contents(next_version, changesets);
+
+    let new_contents = insert_before(&contents, "## ", &contents_to_insert);
+
+    file.seek(io::SeekFrom::Start(0))?;
+    write!(file, "{new_contents}")?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -265,5 +352,26 @@ mod tests {
     ) {
         let result = determine_final_bump_type(&input).unwrap();
         assert_eq!(result, expected);
+    }
+
+    #[rstest]
+    fn test_insert_before_inserts_contents_before_search() {
+        let contents = insert_before("line1\nline2\nline3\n", "line2", "new line\n");
+
+        assert_eq!(contents, "line1\nnew line\nline2\nline3\n");
+    }
+
+    #[rstest]
+    fn test_insert_before_inserts_contents_before_search_only_once() {
+        let contents = insert_before("line1\nline2\nline3\nline2\n", "line2", "new line\n");
+
+        assert_eq!(contents, "line1\nnew line\nline2\nline3\nline2\n");
+    }
+
+    #[rstest]
+    fn test_insert_before_inserts_contents_before_search_partial_match() {
+        let contents = insert_before("line1\nline2\nline3\n", "line", "new line\n");
+
+        assert_eq!(contents, "new line\nline1\nline2\nline3\n");
     }
 }

@@ -96,16 +96,22 @@ fn version_command() {
     let current_version = plugin::get_version_via_plugin().unwrap();
     let changesets = changeset::get_changesets().unwrap();
     let bump_type = changeset::determine_final_bump_type(&changesets).unwrap();
-    match bump_type {
+    let new_version = match bump_type {
         Some(bump_type) => {
             let new_version = current_version.bump(&bump_type);
             println!("Updating version from {current_version} to {new_version}");
+            Some(new_version)
         }
         None => {
             println!("No changesets found");
+            None
         }
+    };
+    if new_version.is_none() {
+        return;
     }
-    let _ = changeset::consume_changesets(&current_version, changesets);
+    changeset::generate_changelog(&new_version.unwrap(), &changesets).unwrap();
+    changeset::consume_changesets(&current_version, changesets).unwrap();
 }
 
 fn main() {
