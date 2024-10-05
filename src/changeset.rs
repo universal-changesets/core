@@ -170,27 +170,31 @@ impl TryFrom<PathBuf> for Change {
                 return Err("Failed to read file");
             }
 
+            println!("Contents: {}", contents);
+
             let metadata = contents
                 .lines()
                 .find(|line| line.starts_with(CHANGESET_FILE_KEY));
 
-            if let Some(metadata) = metadata {
-                let metadata = metadata.split(":").collect::<Vec<&str>>();
-                let bump_type = metadata[1].trim();
-                let parsed_bump_type = bump_type.parse_bump_type();
-                if parsed_bump_type.is_err() {
-                    return Err("Invalid bump type found in file");
-                }
-                let parsed_bump_type = parsed_bump_type.unwrap();
+            match metadata {
+                Some(metadata) => {
+                    let metadata = metadata.split(":").collect::<Vec<&str>>();
+                    let bump_type = metadata[1].trim();
+                    let parsed_bump_type = bump_type.parse_bump_type();
+                    if parsed_bump_type.is_err() {
+                        return Err("Invalid bump type found in file");
+                    }
+                    let parsed_bump_type = parsed_bump_type.unwrap();
 
-                return Ok(Change {
-                    bump_type: parsed_bump_type,
-                    summary: "".to_string(),
-                    description: "".to_string(),
-                    file_path: val.clone(),
-                });
+                    return Ok(Change {
+                        bump_type: parsed_bump_type,
+                        summary: "".to_string(),
+                        description: "".to_string(),
+                        file_path: val.clone(),
+                    });
+                }
+                None => return Err("No metadata found in file"),
             }
-            return Err("No metadata found in file");
         }
         return Err("Path is not a file");
     }
@@ -262,7 +266,8 @@ pub fn get_changesets() -> anyhow::Result<Vec<Change>> {
     for entry in std::fs::read_dir(CHANGESET_DIRECTORY)? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_file() {
+        let extension = path.extension();
+        if path.is_file() && extension == Some(std::ffi::OsStr::new("md")) {
             let change = Change::try_from(path).unwrap();
             changesets.push(change);
         }
