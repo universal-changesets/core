@@ -83,7 +83,7 @@ pub fn generate_changelog(
     contents.push_str("\n\n");
 
     let mut contents_to_insert = generate_changelog_contents(next_version, changesets);
-    contents_to_insert.push('\n');
+    contents_to_insert.push_str("\n\n");
 
     let mut new_contents = utils::insert_before(&contents, "## ", &contents_to_insert);
     new_contents = new_contents.trim_end().to_string();
@@ -191,20 +191,26 @@ mod tests {
     }
 
     #[rstest]
-    fn test_generate_changelog_generates_correct_contents() {
-        let changesets = vec![Change {
-            bump_type: IncrementType::Major,
-            summary: "test".to_string(),
-            description: "".to_string(),
-            file_path: PathBuf::new(),
-        }];
-
+    #[case(vec![Change {
+        bump_type: IncrementType::Major,
+        summary: "test".to_string(),
+        description: "".to_string(),
+        file_path: PathBuf::new(),
+    }], "# Changelog\n", "# Changelog\n\n## 1.2.3\n\n### Breaking Changes\n\n#### test\n")]
+    #[case(vec![Change {
+        bump_type: IncrementType::Major,
+        summary: "test".to_string(),
+        description: "".to_string(),
+        file_path: PathBuf::new(),
+    }], "# Changelog\n\n## 1.2.2\n\n### Breaking Changes\n\n#### test\n", "# Changelog\n\n## 1.2.3\n\n### Breaking Changes\n\n#### test\n\n## 1.2.2\n\n### Breaking Changes\n\n#### test\n")]
+    fn test_generate_changelog_generates_correct_contents(
+        #[case] changes: Vec<Change>,
+        #[case] existing_changelog: &str,
+        #[case] expected: &str,
+    ) {
         let changelog =
-            generate_changelog("# Changelog\n", &Version::new(1, 2, 3), &changesets).unwrap();
+            generate_changelog(existing_changelog, &Version::new(1, 2, 3), &changes).unwrap();
 
-        assert_eq!(
-            changelog,
-            "# Changelog\n\n## 1.2.3\n\n### Breaking Changes\n\n#### test\n"
-        );
+        assert_eq!(changelog, expected);
     }
 }

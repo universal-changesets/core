@@ -1,11 +1,9 @@
-use std::{fs::File, path::PathBuf};
-
 use changeset::{Bump, ChangeSetExt, IncrementType};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cliclack::{input, select};
 use semver::Version;
-use std::io::Write;
-use std::io::{self, Read, Seek};
+use std::io::{Read, Write};
+use std::{fs::File, path::PathBuf};
 
 mod changelog;
 mod changeset;
@@ -118,20 +116,28 @@ fn version_command() {
     }
     let existing_changelog_path = PathBuf::from(changelog::CHANGELOG_FILENAME);
     let mut file = File::options()
-        .create(true)
+        .create(false)
         .read(true)
-        .write(true)
+        .write(false)
         .truncate(false)
-        .open(existing_changelog_path)
+        .open(&existing_changelog_path)
         .unwrap();
-
-    file.seek(io::SeekFrom::Start(0)).unwrap();
 
     let mut existing_changelog = String::new();
     file.read_to_string(&mut existing_changelog).unwrap();
+
     let new_contents =
         changelog::generate_changelog(&existing_changelog, &new_version.unwrap(), &changesets)
             .unwrap();
+
+    let mut file = File::options()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(true)
+        .open(&existing_changelog_path)
+        .unwrap();
+
     write!(file, "{}", new_contents).unwrap();
     changesets.consume(&current_version).unwrap();
 }

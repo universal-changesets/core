@@ -170,8 +170,6 @@ impl TryFrom<PathBuf> for Change {
                 return Err("Failed to read file");
             }
 
-            println!("Contents: {}", contents);
-
             let metadata = contents
                 .lines()
                 .find(|line| line.starts_with(CHANGESET_FILE_KEY));
@@ -186,10 +184,23 @@ impl TryFrom<PathBuf> for Change {
                     }
                     let parsed_bump_type = parsed_bump_type.unwrap();
 
+                    let summary = contents
+                        .lines()
+                        .find(|line| line.starts_with("# "))
+                        .unwrap()
+                        .replace("# ", "");
+
+                    let description = contents
+                        .split("\n---\n")
+                        .skip(2)
+                        .skip_while(|line| line.starts_with("# "))
+                        .collect::<Vec<&str>>()
+                        .join("\n");
+
                     return Ok(Change {
                         bump_type: parsed_bump_type,
-                        summary: "".to_string(),
-                        description: "".to_string(),
+                        summary,
+                        description,
                         file_path: val.clone(),
                     });
                 }
