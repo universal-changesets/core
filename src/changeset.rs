@@ -1,7 +1,7 @@
+use anyhow::Result;
 use rand::seq::SliceRandom;
 use semver::Version;
-use std::fs::File;
-use std::io::{self, Read, Seek};
+use std::io::Read;
 use std::{fmt::Display, io::Write, path::PathBuf};
 
 const NAMES: [&str; 39] = [
@@ -49,7 +49,6 @@ const NAMES: [&str; 39] = [
 const CHANGE_NAME_PARTS: i8 = 3;
 const CHANGESET_DIRECTORY: &str = ".changeset";
 const CHANGESET_FILE_KEY: &str = "changeset/type";
-const CHANGELOG_FILENAME: &str = "CHANGELOG.md";
 
 #[derive(Debug, PartialEq, Clone, Eq)]
 pub enum IncrementType {
@@ -148,8 +147,85 @@ impl Bump for Version {
 
 #[derive(Debug, Clone)]
 pub struct Change {
-    pub bump_type: IncrementType,
     pub file_path: PathBuf,
+    pub bump_type: IncrementType,
+    pub summary: String,
+    pub description: String,
+}
+
+impl TryFrom<PathBuf> for Change {
+    type Error = &'static str;
+
+    fn try_from(val: PathBuf) -> Result<Self, Self::Error> {
+        if val.is_file() {
+            let file = std::fs::File::open(&val);
+            let file = match file {
+                Ok(file) => file,
+                Err(_) => return Err("Failed to open file"),
+            };
+            let mut reader = std::io::BufReader::new(file);
+            let mut contents = String::new();
+            let read_result = reader.read_to_string(&mut contents);
+            if read_result.is_err() {
+                return Err("Failed to read file");
+            }
+
+            let metadata = contents
+                .lines()
+                .find(|line| line.starts_with(CHANGESET_FILE_KEY));
+
+            if let Some(metadata) = metadata {
+                let metadata = metadata.split(":").collect::<Vec<&str>>();
+                let bump_type = metadata[1].trim();
+                let parsed_bump_type = bump_type.parse_bump_type();
+                if parsed_bump_type.is_err() {
+                    return Err("Invalid bump type found in file");
+                }
+                let parsed_bump_type = parsed_bump_type.unwrap();
+
+                return Ok(Change {
+                    bump_type: parsed_bump_type,
+                    summary: "".to_string(),
+                    description: "".to_string(),
+                    file_path: val.clone(),
+                });
+            }
+            return Err("No metadata found in file");
+        }
+        return Err("Path is not a file");
+    }
+}
+
+pub trait ChangeSetExt {
+    fn determine_next_version(&self, current_version: &Version) -> Result<Version>;
+    fn determine_final_bump_type(&self) -> Result<Option<IncrementType>>;
+    fn consume(self, current_version: &Version) -> Result<Version>;
+}
+
+impl ChangeSetExt for Vec<Change> {
+    fn determine_next_version(&self, current_version: &Version) -> Result<Version> {
+        let bump_type = self.determine_final_bump_type()?;
+        match bump_type {
+            Some(bump_type) => Ok(current_version.bump(&bump_type)),
+            None => Ok(current_version.clone()),
+        }
+    }
+    fn determine_final_bump_type(&self) -> Result<Option<IncrementType>> {
+        if self.is_empty() {
+            return Ok(None);
+        }
+        let max_bump_type = self.iter().map(|c| &c.bump_type).max().cloned();
+
+        Ok(max_bump_type)
+    }
+    fn consume(self, current_version: &Version) -> Result<Version> {
+        let new_version = self.determine_next_version(current_version)?;
+        self.iter().for_each(|c| {
+            std::fs::remove_file(&c.file_path).unwrap();
+        });
+
+        Ok(new_version)
+    }
 }
 
 pub fn generate_change_name() -> String {
@@ -179,6 +255,7 @@ pub fn create_change_file(bump_type: IncrementType, message: &str) -> anyhow::Re
     Ok(filepath)
 }
 
+/// Retrieves all changesets from the changeset directory
 pub fn get_changesets() -> anyhow::Result<Vec<Change>> {
     let mut changesets: Vec<Change> = Vec::new();
 
@@ -186,163 +263,72 @@ pub fn get_changesets() -> anyhow::Result<Vec<Change>> {
         let entry = entry?;
         let path = entry.path();
         if path.is_file() {
-            let file = std::fs::File::open(path)?;
-            let mut reader = std::io::BufReader::new(file);
-            let mut contents = String::new();
-            reader.read_to_string(&mut contents)?;
-
-            let metadata = contents
-                .lines()
-                .find(|line| line.starts_with(CHANGESET_FILE_KEY));
-
-            if let Some(metadata) = metadata {
-                let metadata = metadata.split(":").collect::<Vec<&str>>();
-                let bump_type = metadata[1].trim();
-                changesets.push(Change {
-                    bump_type: bump_type.parse_bump_type()?,
-                    file_path: entry.path(),
-                });
-            }
+            let change = Change::try_from(path).unwrap();
+            changesets.push(change);
         }
     }
 
     Ok(changesets)
 }
 
-pub fn determine_final_bump_type(changesets: &[Change]) -> anyhow::Result<Option<IncrementType>> {
-    if changesets.is_empty() {
-        return Ok(None);
-    }
-    let max_bump_type = changesets.iter().map(|c| &c.bump_type).max().cloned();
-
-    Ok(max_bump_type)
-}
-
-pub fn determine_next_version(
-    current_version: &Version,
-    changesets: &[Change],
-) -> anyhow::Result<Version> {
-    let bump_type = determine_final_bump_type(changesets)?;
-    match bump_type {
-        Some(bump_type) => Ok(current_version.bump(&bump_type)),
-        None => Ok(current_version.clone()),
-    }
-}
-
-pub fn consume_changesets(
-    current_version: &Version,
-    changesets: Vec<Change>,
-) -> anyhow::Result<Version> {
-    let new_version = determine_next_version(current_version, &changesets)?;
-
-    changesets.iter().for_each(|c| {
-        std::fs::remove_file(&c.file_path).unwrap();
-    });
-
-    Ok(new_version)
-}
-
-pub fn generate_changelog_contents(next_version: &Version, changesets: &[Change]) -> String {
-    let mut contents = format!("## {next_version}\n\n", next_version = next_version);
-
-    for _ in changesets {
-        contents.push_str("- \n");
-    }
-
-    contents
-}
-
-/// Inserts the contents before the **first** line that starts with `search`
-fn insert_before(contents: &str, search: &str, insertable: &str) -> String {
-    let mut found = false;
-    let mut result = String::new();
-
-    for line in contents.lines() {
-        if line.starts_with(search) && !found {
-            found = true;
-            result.push_str(insertable);
-        }
-        result.push_str(line);
-        result.push('\n');
-    }
-
-    if !found {
-        result.push_str(insertable);
-        result.push('\n');
-    }
-
-    result
-}
-
-/// Creates, or updates a CHANGELOG.md file with the contents of the changesets
-pub fn generate_changelog(next_version: &Version, changesets: &[Change]) -> anyhow::Result<()> {
-    let file_exists = PathBuf::from(CHANGELOG_FILENAME).exists();
-    let mut contents = String::new();
-    if !file_exists {
-        contents.push_str("# Changelog\n\n");
-    }
-    let mut file = File::options()
-        .create(true)
-        .read(true)
-        .write(true)
-        .truncate(false)
-        .open(CHANGELOG_FILENAME)?;
-
-    file.seek(io::SeekFrom::Start(0))?;
-
-    file.read_to_string(&mut contents)?;
-
-    let contents_to_insert = generate_changelog_contents(next_version, changesets);
-
-    let new_contents = insert_before(&contents, "## ", &contents_to_insert);
-
-    file.seek(io::SeekFrom::Start(0))?;
-    write!(file, "{new_contents}")?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
     use rstest::rstest;
 
     #[rstest]
     #[case::major(vec![
         Change {
             bump_type: IncrementType::Major,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
         Change {
             bump_type: IncrementType::Minor,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
         Change {
             bump_type: IncrementType::Patch,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
     ], Some(IncrementType::Major))]
     #[case::minor(vec![
         Change {
             bump_type: IncrementType::Minor,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
         Change {
             bump_type: IncrementType::Minor,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
         Change {
             bump_type: IncrementType::Patch,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
     ], Some(IncrementType::Minor))]
     #[case::patch(vec![
         Change {
             bump_type: IncrementType::Patch,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
         Change {
             bump_type: IncrementType::Patch,
+            summary: "".to_string(),
+            description: "".to_string(),
             file_path: PathBuf::new(),
         },
     ], Some(IncrementType::Patch))]
@@ -350,28 +336,7 @@ mod tests {
         #[case] input: Vec<Change>,
         #[case] expected: Option<IncrementType>,
     ) {
-        let result = determine_final_bump_type(&input).unwrap();
+        let result = input.determine_final_bump_type().unwrap();
         assert_eq!(result, expected);
-    }
-
-    #[rstest]
-    fn test_insert_before_inserts_contents_before_search() {
-        let contents = insert_before("line1\nline2\nline3\n", "line2", "new line\n");
-
-        assert_eq!(contents, "line1\nnew line\nline2\nline3\n");
-    }
-
-    #[rstest]
-    fn test_insert_before_inserts_contents_before_search_only_once() {
-        let contents = insert_before("line1\nline2\nline3\nline2\n", "line2", "new line\n");
-
-        assert_eq!(contents, "line1\nnew line\nline2\nline3\nline2\n");
-    }
-
-    #[rstest]
-    fn test_insert_before_inserts_contents_before_search_partial_match() {
-        let contents = insert_before("line1\nline2\nline3\n", "line", "new line\n");
-
-        assert_eq!(contents, "new line\nline1\nline2\nline3\n");
     }
 }

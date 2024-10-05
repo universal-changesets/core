@@ -1,11 +1,17 @@
-use changeset::{Bump, IncrementType};
+use std::{fs::File, path::PathBuf};
+
+use changeset::{Bump, ChangeSetExt, IncrementType};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cliclack::{input, select};
 use semver::Version;
+use std::io::Write;
+use std::io::{self, Read, Seek};
 
+mod changelog;
 mod changeset;
 mod config;
 mod plugin;
+mod utils;
 
 #[derive(Parser, Debug, PartialEq, Clone, ValueEnum, Eq)]
 enum BumpType {
@@ -95,7 +101,7 @@ fn get_version() -> Version {
 fn version_command() {
     let current_version = plugin::get_version_via_plugin().unwrap();
     let changesets = changeset::get_changesets().unwrap();
-    let bump_type = changeset::determine_final_bump_type(&changesets).unwrap();
+    let bump_type = changesets.determine_final_bump_type().unwrap();
     let new_version = match bump_type {
         Some(bump_type) => {
             let new_version = current_version.bump(&bump_type);
@@ -110,8 +116,24 @@ fn version_command() {
     if new_version.is_none() {
         return;
     }
-    changeset::generate_changelog(&new_version.unwrap(), &changesets).unwrap();
-    changeset::consume_changesets(&current_version, changesets).unwrap();
+    let existing_changelog_path = PathBuf::from(changelog::CHANGELOG_FILENAME);
+    let mut file = File::options()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(existing_changelog_path)
+        .unwrap();
+
+    file.seek(io::SeekFrom::Start(0)).unwrap();
+
+    let mut existing_changelog = String::new();
+    file.read_to_string(&mut existing_changelog).unwrap();
+    let new_contents =
+        changelog::generate_changelog(&existing_changelog, &new_version.unwrap(), &changesets)
+            .unwrap();
+    write!(file, "{}", new_contents).unwrap();
+    changesets.consume(&current_version).unwrap();
 }
 
 fn main() {
