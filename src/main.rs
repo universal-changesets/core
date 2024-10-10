@@ -126,9 +126,15 @@ fn version_command() {
     let mut existing_changelog = String::new();
     file.read_to_string(&mut existing_changelog).unwrap();
 
-    let new_contents =
-        changelog::generate_changelog(&existing_changelog, &new_version.unwrap(), &changesets)
-            .unwrap();
+    let publish_date = chrono::Utc::now();
+
+    let new_contents = changelog::generate_changelog(
+        &existing_changelog,
+        &new_version.unwrap(),
+        &changesets,
+        publish_date,
+    )
+    .unwrap();
 
     let mut file = File::options()
         .create(true)

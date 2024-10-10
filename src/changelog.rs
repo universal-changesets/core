@@ -1,15 +1,22 @@
 use crate::changeset::{Change, IncrementType};
 use crate::utils;
+use chrono::DateTime;
 use semver::Version;
 
 pub const CHANGELOG_FILENAME: &str = "CHANGELOG.md";
 
-pub fn generate_changelog_contents(next_version: &Version, changesets: &[Change]) -> String {
+pub fn generate_changelog_contents(
+    next_version: &Version,
+    changesets: &[Change],
+    publish_date: DateTime<chrono::Utc>,
+) -> String {
     if changesets.is_empty() {
         return String::new();
     }
 
-    let mut contents = format!("## {next_version}\n\n");
+    let publish_date = publish_date.format("%d-%m-%Y").to_string();
+
+    let mut contents = format!("## {next_version} ({publish_date})\n\n");
 
     let breaking_changes = changesets
         .iter()
@@ -73,6 +80,7 @@ pub fn generate_changelog(
     existing_changelog: &str,
     next_version: &Version,
     changesets: &[Change],
+    publish_date: DateTime<chrono::Utc>,
 ) -> anyhow::Result<String> {
     let mut contents = String::new();
     if existing_changelog.is_empty() {
@@ -82,7 +90,8 @@ pub fn generate_changelog(
     }
     contents.push_str("\n\n");
 
-    let mut contents_to_insert = generate_changelog_contents(next_version, changesets);
+    let mut contents_to_insert =
+        generate_changelog_contents(next_version, changesets, publish_date);
     contents_to_insert.push_str("\n\n");
 
     let mut new_contents = utils::insert_before(&contents, "## ", &contents_to_insert);
@@ -109,7 +118,7 @@ mod tests {
             description: "".to_string(),
             file_path: PathBuf::new(),
         },
-    ], "## 1.2.3\n\n### Breaking Changes\n\n#### Breaking change 1")]
+    ], "## 1.2.3 (01-01-1970)\n\n### Breaking Changes\n\n#### Breaking change 1")]
     #[case(vec![
         Change {
             bump_type: IncrementType::Major,
@@ -117,7 +126,7 @@ mod tests {
             description: "This is the text for the breaking change".to_string(),
             file_path: PathBuf::new(),
         },
-    ], "## 1.2.3\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change")]
+    ], "## 1.2.3 (01-01-1970)\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change")]
     #[case(vec![
         Change {
             bump_type: IncrementType::Minor,
@@ -125,7 +134,7 @@ mod tests {
             description: "feature description".to_string(),
             file_path: PathBuf::new(),
         },
-    ], "## 1.2.3\n\n### Features\n\n#### Feature 1\n\nfeature description")]
+    ], "## 1.2.3 (01-01-1970)\n\n### Features\n\n#### Feature 1\n\nfeature description")]
     #[case(vec![
         Change {
             bump_type: IncrementType::Patch,
@@ -133,7 +142,7 @@ mod tests {
             description: "patch description".to_string(),
             file_path: PathBuf::new(),
         },
-    ], "## 1.2.3\n\n### Patches\n\n#### Patch 1\n\npatch description")]
+    ], "## 1.2.3 (01-01-1970)\n\n### Patches\n\n#### Patch 1\n\npatch description")]
     #[case(vec![
         Change {
             bump_type: IncrementType::Major,
@@ -147,7 +156,7 @@ mod tests {
             description: "This is the text for the patch".to_string(),
             file_path: PathBuf::new(),
         },
-    ], "## 1.2.3\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change\n\n### Patches\n\n#### Patch 1\n\nThis is the text for the patch")]
+    ], "## 1.2.3 (01-01-1970)\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change\n\n### Patches\n\n#### Patch 1\n\nThis is the text for the patch")]
     #[case(vec![
         Change {
             bump_type: IncrementType::Major,
@@ -167,7 +176,7 @@ mod tests {
             description: "This is the text for the patch".to_string(),
             file_path: PathBuf::new(),
         },
-    ], "## 1.2.3\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change\n\n### Features\n\n#### Feature 1\n\nThis is the text for the feature\n\n### Patches\n\n#### Patch 1\n\nThis is the text for the patch")]
+    ], "## 1.2.3 (01-01-1970)\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change\n\n### Features\n\n#### Feature 1\n\nThis is the text for the feature\n\n### Patches\n\n#### Patch 1\n\nThis is the text for the patch")]
     #[case(vec![
         Change {
             bump_type: IncrementType::Major,
@@ -181,11 +190,13 @@ mod tests {
             description: "This is the text for the breaking change again".to_string(),
             file_path: PathBuf::new(),
         },
-    ], "## 1.2.3\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change\n\n#### Breaking change 2\n\nThis is the text for the breaking change again")]
+    ], "## 1.2.3 (01-01-1970)\n\n### Breaking Changes\n\n#### Breaking change 1\n\nThis is the text for the breaking change\n\n#### Breaking change 2\n\nThis is the text for the breaking change again")]
     fn test_generate_changelog_contents(#[case] changes: Vec<Change>, #[case] expected: &str) {
         let version = Version::new(1, 2, 3);
 
-        let changelog_contents = generate_changelog_contents(&version, &changes);
+        let publish_date = chrono::DateTime::from_timestamp(0, 0).unwrap();
+
+        let changelog_contents = generate_changelog_contents(&version, &changes, publish_date);
 
         assert_eq!(changelog_contents, expected);
     }
@@ -196,20 +207,26 @@ mod tests {
         summary: "test".to_string(),
         description: "".to_string(),
         file_path: PathBuf::new(),
-    }], "# Changelog\n", "# Changelog\n\n## 1.2.3\n\n### Breaking Changes\n\n#### test\n")]
+    }], "# Changelog\n", "# Changelog\n\n## 1.2.3 (01-01-1970)\n\n### Breaking Changes\n\n#### test\n")]
     #[case(vec![Change {
         bump_type: IncrementType::Major,
         summary: "test".to_string(),
         description: "".to_string(),
         file_path: PathBuf::new(),
-    }], "# Changelog\n\n## 1.2.2\n\n### Breaking Changes\n\n#### test\n", "# Changelog\n\n## 1.2.3\n\n### Breaking Changes\n\n#### test\n\n## 1.2.2\n\n### Breaking Changes\n\n#### test\n")]
+    }], "# Changelog\n\n## 1.2.2\n\n### Breaking Changes\n\n#### test\n", "# Changelog\n\n## 1.2.3 (01-01-1970)\n\n### Breaking Changes\n\n#### test\n\n## 1.2.2\n\n### Breaking Changes\n\n#### test\n")]
     fn test_generate_changelog_generates_correct_contents(
         #[case] changes: Vec<Change>,
         #[case] existing_changelog: &str,
         #[case] expected: &str,
     ) {
-        let changelog =
-            generate_changelog(existing_changelog, &Version::new(1, 2, 3), &changes).unwrap();
+        let publish_date = chrono::DateTime::from_timestamp(0, 0).unwrap();
+        let changelog = generate_changelog(
+            existing_changelog,
+            &Version::new(1, 2, 3),
+            &changes,
+            publish_date,
+        )
+        .unwrap();
 
         assert_eq!(changelog, expected);
     }
