@@ -104,19 +104,22 @@ pub fn get_version() -> Version {
     }
 }
 
-pub fn preview_version_command() -> Option<String> {
+pub fn preview_version_command() {
     let current_version = plugin::get_version_via_plugin().unwrap();
     let changesets = changeset::get_changesets().unwrap();
     let bump_type = changesets.determine_final_bump_type().unwrap();
     let new_version = bump_type.map(|bump_type| current_version.bump(&bump_type));
-    new_version.as_ref()?;
+    if new_version.is_none() {
+        println!("There aren't any changes!");
+        return;
+    }
 
     let publish_date = chrono::Utc::now();
 
     let contents_to_insert =
         changelog::generate_changelog_contents(&new_version.unwrap(), &changesets, publish_date);
 
-    return Some(contents_to_insert);
+    println!("{}", contents_to_insert)
 }
 
 pub fn version_command() {

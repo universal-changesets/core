@@ -25,11 +25,7 @@ fn main() {
                 get_version();
             }
             PreviewCommands::Changelog => {
-                let changelog_preview = preview_version_command();
-                match changelog_preview {
-                    Some(changelog) => println!("{}", changelog),
-                    None => println!("There aren't any changes!"),
-                }
+                preview_version_command();
             }
         },
         None => add_changeset(&AddCommand {
