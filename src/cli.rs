@@ -50,6 +50,7 @@ pub struct GetCommand {}
 #[derive(Parser)]
 pub enum PreviewCommands {
     Version(GetCommand),
+    Changelog,
 }
 #[derive(Parser)]
 pub struct Preview {
@@ -101,6 +102,21 @@ pub fn get_version() -> Version {
             return Version::new(0, 0, 0);
         }
     }
+}
+
+pub fn preview_version_command() -> Option<String> {
+    let current_version = plugin::get_version_via_plugin().unwrap();
+    let changesets = changeset::get_changesets().unwrap();
+    let bump_type = changesets.determine_final_bump_type().unwrap();
+    let new_version = bump_type.map(|bump_type| current_version.bump(&bump_type));
+    new_version.as_ref()?;
+
+    let publish_date = chrono::Utc::now();
+
+    let contents_to_insert =
+        changelog::generate_changelog_contents(&new_version.unwrap(), &changesets, publish_date);
+
+    return Some(contents_to_insert);
 }
 
 pub fn version_command() {

@@ -1,6 +1,7 @@
 use clap::Parser;
 use cli::{
-    add_changeset, get_version, version_command, AddCommand, Cli, Commands, PreviewCommands,
+    add_changeset, get_version, preview_version_command, version_command, AddCommand, Cli,
+    Commands, PreviewCommands,
 };
 
 mod changelog;
@@ -22,6 +23,13 @@ fn main() {
         Some(Commands::Preview(command)) => match &command.preview_commands {
             PreviewCommands::Version(_) => {
                 get_version();
+            }
+            PreviewCommands::Changelog => {
+                let changelog_preview = preview_version_command();
+                match changelog_preview {
+                    Some(changelog) => println!("{}", changelog),
+                    None => println!("There aren't any changes!"),
+                }
             }
         },
         None => add_changeset(&AddCommand {
