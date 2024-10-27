@@ -16,7 +16,7 @@ fn main() {
 
     match &cli.command {
         Some(Commands::Add(command)) => add_changeset(command),
-        Some(Commands::Version(_command)) => version_command(),
+        Some(Commands::Version(_command)) => version_command().unwrap(),
         Some(Commands::Get(_)) => {
             get_version();
         }

@@ -1,6 +1,6 @@
 use crate::changelog;
 use crate::changeset::{self, Bump, ChangeSetExt, IncrementType};
-use crate::plugin;
+use crate::plugin::{self, set_version_via_plugin};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cliclack::{input, select};
 use semver::Version;
@@ -94,7 +94,7 @@ pub fn get_version() -> Version {
     let ver = plugin::get_version_via_plugin();
     match ver {
         Ok(v) => {
-            println!("Version: {}", v);
+            println!("{}", v);
             return v;
         }
         Err(e) => {
@@ -122,10 +122,10 @@ pub fn preview_version_command() {
     println!("{}", contents_to_insert)
 }
 
-pub fn version_command() {
-    let current_version = plugin::get_version_via_plugin().unwrap();
-    let changesets = changeset::get_changesets().unwrap();
-    let bump_type = changesets.determine_final_bump_type().unwrap();
+pub fn version_command() -> anyhow::Result<()> {
+    let current_version = plugin::get_version_via_plugin()?;
+    let changesets = changeset::get_changesets()?;
+    let bump_type = changesets.determine_final_bump_type()?;
     let new_version = match bump_type {
         Some(bump_type) => {
             let new_version = current_version.bump(&bump_type);
@@ -138,10 +138,20 @@ pub fn version_command() {
         }
     };
     if new_version.is_none() {
-        return;
+        return Ok(());
     }
+    let new = new_version.unwrap();
+    set_version_via_plugin(&new)?;
+
+    write_changelog(&changesets, &new)?;
+
+    changesets.consume(&current_version)?;
+    return Ok(());
+}
+
+pub fn write_changelog(changesets: &[changeset::Change], new: &Version) -> anyhow::Result<()> {
     let existing_changelog_path = PathBuf::from(changelog::CHANGELOG_FILENAME);
-    let mut file = File::options()
+    let mut changelog_file = File::options()
         .create(false)
         .read(true)
         .write(false)
@@ -150,19 +160,16 @@ pub fn version_command() {
         .unwrap();
 
     let mut existing_changelog = String::new();
-    file.read_to_string(&mut existing_changelog).unwrap();
+    changelog_file
+        .read_to_string(&mut existing_changelog)
+        .unwrap();
 
-    let publish_date = chrono::Utc::now();
+    let today = chrono::Utc::now();
 
-    let new_contents = changelog::generate_changelog(
-        &existing_changelog,
-        &new_version.unwrap(),
-        &changesets,
-        publish_date,
-    )
-    .unwrap();
+    let new_contents =
+        changelog::generate_changelog(&existing_changelog, new, changesets, today).unwrap();
 
-    let mut file = File::options()
+    let mut changelog_file = File::options()
         .create(true)
         .read(true)
         .write(true)
@@ -170,6 +177,6 @@ pub fn version_command() {
         .open(&existing_changelog_path)
         .unwrap();
 
-    write!(file, "{}", new_contents).unwrap();
-    changesets.consume(&current_version).unwrap();
+    write!(changelog_file, "{}", new_contents).unwrap();
+    return Ok(());
 }
