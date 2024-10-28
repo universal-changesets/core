@@ -26,7 +26,7 @@ changeset add --bump-type major --message "Added a new feature" # or simply `cha
 This is mainly a helper for CI or other scripts, but you can run the `changeset get-version` command to get the current version of the project.
 
 ```bash
-changeset get-version
+changeset get
 # 1.2.3
 ```
 
@@ -66,12 +66,16 @@ The file must be a plain text file with the following format:
 
 Example config file:
 
-```json
+```jsonc
 {
+  // Alternatively you can use
+  // "https://raw.githubusercontent.com/universal-changesets/core/main/changeset-config.schema.json"
+  // if you want to use the latest schema
+  "$schema": "https://raw.githubusercontent.com/universal-changesets/core/v1.0.0/changeset-config.schema.json",
   "plugin": {
     "name": "versionfile",
     "sha256": "beef1de60035053ad01eff83875999dc9918a65e1cffc006fca95c3bfbe55d70",
-    "url": "https://github.com/alex-way/changesets-go-versionfile-plugin/releases/download/0.0.2/versionfile.wasm",
+    "url": "https://github.com/universal-changesets/rust-cargo-plugin/releases/download/0.0.2/versionfile.wasm",
     "versionedFile": ".changeset/version"
   }
 }
