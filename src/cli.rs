@@ -151,18 +151,22 @@ pub fn version_command() -> anyhow::Result<()> {
 
 pub fn write_changelog(changesets: &[changeset::Change], new: &Version) -> anyhow::Result<()> {
     let existing_changelog_path = PathBuf::from(changelog::CHANGELOG_FILENAME);
-    let mut changelog_file = File::options()
-        .create(false)
-        .read(true)
-        .write(false)
-        .truncate(false)
-        .open(&existing_changelog_path)
-        .unwrap();
 
     let mut existing_changelog = String::new();
-    changelog_file
-        .read_to_string(&mut existing_changelog)
-        .unwrap();
+    if !existing_changelog_path.exists() {
+        existing_changelog.push_str("# Changelog\n\n");
+    } else {
+        let mut changelog_file = File::options()
+            .create(false)
+            .read(true)
+            .write(false)
+            .truncate(false)
+            .open(&existing_changelog_path)
+            .unwrap();
+        changelog_file
+            .read_to_string(&mut existing_changelog)
+            .unwrap();
+    }
 
     let today = chrono::Utc::now();
 
@@ -179,4 +183,38 @@ pub fn write_changelog(changesets: &[changeset::Change], new: &Version) -> anyho
 
     write!(changelog_file, "{}", new_contents).unwrap();
     return Ok(());
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+    use rstest::rstest;
+    use std::env::set_current_dir;
+    use tempfile::tempdir;
+
+    #[rstest]
+    fn test_write_changelog_creates_changelog_if_not_exists() {
+        let directory = tempdir().unwrap();
+        // change to directory
+
+        set_current_dir(&directory).unwrap();
+
+        let changesets = vec![changeset::Change {
+            summary: "Summary".to_string(),
+            description: "Description".to_string(),
+            bump_type: IncrementType::Major,
+            file_path: PathBuf::new(),
+        }];
+
+        let new_version = Version::new(1, 0, 0);
+        // Assert no changelog file exists before running the func
+        assert!(!Path::new(changelog::CHANGELOG_FILENAME).exists());
+
+        let result = write_changelog(&changesets, &new_version);
+        assert!(result.is_ok());
+
+        assert!(Path::new(changelog::CHANGELOG_FILENAME).exists());
+    }
 }
