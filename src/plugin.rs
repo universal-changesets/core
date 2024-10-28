@@ -32,7 +32,7 @@ pub fn get_version_via_plugin() -> anyhow::Result<Version> {
     let (mut plugin, versioned_file_path) = setup_plugin()?;
     let response =
         plugin.call::<&str, &str>("get_version", versioned_file_path.to_str().unwrap())?;
-    println!("response: {}", response);
+
     let parsed_version = Version::parse(response.to_string().as_str())?;
 
     Ok(parsed_version)
