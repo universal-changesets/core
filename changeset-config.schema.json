@@ -1,0 +1,33 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/universal-changesets/core/blob/main/changeset-config.schema.json",
+	"title": "Product",
+	"description": "A product in the catalog",
+	"type": "object",
+	"required": ["plugin"],
+	"properties": {
+		"plugin": {
+			"type": "object",
+			"description": "A list of plugins to use",
+			"required": ["url", "sha256"],
+			"properties": {
+				"url": {
+					"type": "string",
+					"description": "The URL of the plugin to use"
+				},
+				"sha256": {
+					"type": "string",
+					"description": "The SHA256 hash of the plugin"
+				},
+				"name": {
+					"type": "string",
+					"description": "The name of the plugin"
+				},
+				"versioned": {
+					"type": "string",
+					"description": "The relative path from the root of the repository to the versioned file"
+				}
+			}
+		}
+	}
+}
