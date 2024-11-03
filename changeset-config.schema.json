@@ -8,24 +8,16 @@
 	"properties": {
 		"plugin": {
 			"type": "object",
-			"description": "A list of plugins to use",
-			"required": ["url", "sha256"],
+			"description": "The plugin related configuration",
+			"required": ["url"],
 			"properties": {
 				"url": {
 					"type": "string",
-					"description": "The URL of the plugin to use"
+					"description": "The URL of the plugin to use. As a shorthand for github, you can use the following format: gh:{owner}/{repo}@{version} which translates to https://github.com/owner/repo/releases/download/version/plugin.wasm"
 				},
 				"sha256": {
 					"type": "string",
 					"description": "The SHA256 hash of the plugin"
-				},
-				"name": {
-					"type": "string",
-					"description": "The name of the plugin"
-				},
-				"versioned": {
-					"type": "string",
-					"description": "The relative path from the root of the repository to the versioned file"
 				}
 			}
 		}

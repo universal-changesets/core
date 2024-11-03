@@ -12,8 +12,46 @@ pub const CONFIG_FILENAME: &str = "config.json";
 pub struct Plugin {
     #[serde(rename = "versionedFile")]
     pub versioned_file: PathBuf,
+    /// The URL of the plugin to use. As a shorthand for github, you can use the following format: gh:{owner}/{repo}@{version}
+    /// ->
+    /// https://github.com/owner/repo/releases/download/version/plugin.wasm
     pub url: String,
     pub sha256: Option<String>,
+}
+
+impl Plugin {
+    pub fn get_url(&self) -> anyhow::Result<String> {
+        if self.url.starts_with("http") {
+            return Ok(self.url.clone());
+        }
+
+        return parse_shorthand_github_url(&self.url);
+    }
+}
+
+/// Parses a shorthand github url and returns the full url. Example:
+/// gh:universal-changesets/rust-cargo-plugin@version
+/// ->
+/// https://github.com/owner/repo/releases/download/version/plugin.wasm
+fn parse_shorthand_github_url(url: &str) -> anyhow::Result<String> {
+    if !url.starts_with("gh:") {
+        return Err(anyhow::anyhow!("invalid url"));
+    }
+    let url = url.replace("gh:", "");
+    let version_parts: Vec<&str> = url.split("@").collect();
+    if version_parts.len() != 2 {
+        return Err(anyhow::anyhow!("invalid url"));
+    }
+    let version = version_parts[1];
+    let remaining = version_parts[0];
+    let parts: Vec<&str> = remaining.split("/").collect();
+    if parts.len() != 2 {
+        return Err(anyhow::anyhow!("invalid url"));
+    }
+    let owner = parts[0];
+    let repo = parts[1];
+    let url = format!("https://github.com/{owner}/{repo}/releases/download/{version}/plugin.wasm");
+    Ok(url)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -37,7 +75,8 @@ impl Config {
         let temp_dir = home_dir.join(".cache").join("changesets");
         std::fs::create_dir_all(&temp_dir)?;
 
-        let response = reqwest::blocking::get(&self.plugin.url)?;
+        let plugin_url = self.plugin.get_url()?;
+        let response = reqwest::blocking::get(&plugin_url)?;
         if !response.status().is_success() {
             return Err(anyhow::anyhow!("invalid status code"));
         }
@@ -83,4 +122,33 @@ pub fn get_config() -> anyhow::Result<Config> {
 
     let config: Config = serde_json::from_str(&contents)?;
     Ok(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(
+        "gh:owner/repo@version",
+        "https://github.com/owner/repo/releases/download/version/versionfile.wasm"
+    )]
+    #[case(
+        "https://github.com/owner/repo/releases/download/version/versionfile.wasm",
+        "https://github.com/owner/repo/releases/download/version/versionfile.wasm"
+    )]
+    #[case(
+        "gh:alex-way/changesets-go-versionfile-plugin@0.0.2",
+        "https://github.com/alex-way/changesets-go-versionfile-plugin/releases/download/0.0.2/versionfile.wasm"
+    )]
+    fn test_get_url(#[case] input: &str, #[case] expected: &str) {
+        let plugin = Plugin {
+            url: input.to_string(),
+            sha256: None,
+            versioned_file: "".into(),
+        };
+        let result = plugin.get_url().unwrap();
+        assert_eq!(result, expected);
+    }
 }
