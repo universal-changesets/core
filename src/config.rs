@@ -1,7 +1,6 @@
 use home::home_dir;
 use serde::{Deserialize, Serialize};
 use sha256::Sha256Digest;
-use std::default::Default;
 use std::io::Read;
 use std::path::PathBuf;
 
@@ -104,17 +103,6 @@ impl Config {
 
         std::fs::write(&plugin_path, body)?;
         Ok(plugin_path)
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            plugin: Plugin {
-                url: "".into(),
-                sha256: None,
-            },
-        }
     }
 }
 
