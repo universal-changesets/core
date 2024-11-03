@@ -60,38 +60,47 @@ pub struct Config {
 impl Config {
     pub fn cache_plugin_from_url(&self) -> anyhow::Result<PathBuf> {
         let home_dir = home_dir().ok_or(anyhow::anyhow!("no home dir"))?;
-
         let cache_dir = home_dir.join(".cache").join("changesets");
 
-        if let Some(sha256) = self.plugin.sha256.to_owned() {
-            let sha_plugin_path = cache_dir.join(sha256).join("plugin.wasm");
-            if sha_plugin_path.exists() {
-                return Ok(sha_plugin_path);
-            }
-        }
-
-        let temp_dir = home_dir.join(".cache").join("changesets");
-        std::fs::create_dir_all(&temp_dir)?;
-
         let plugin_url = self.plugin.get_url()?;
-        let response = reqwest::blocking::get(&plugin_url)?;
-        if !response.status().is_success() {
-            return Err(anyhow::anyhow!("invalid status code"));
-        }
-        let body = response.bytes()?;
-        let sum = body.digest();
+        let plugin_url_hash = sha256::digest(&plugin_url);
+        let plugin_dir = cache_dir.join(&plugin_url_hash);
+        let plugin_path = plugin_dir.join("plugin.wasm");
 
-        if let Some(sha256) = self.plugin.sha256.to_owned() {
-            if sha256 != sum {
-                return Err(anyhow::anyhow!("invalid checksum"));
+        if plugin_path.exists() {
+            if let Some(sha256) = self.plugin.sha256.to_owned() {
+                let plugin_contents = std::fs::read(&plugin_path)?;
+                let plugin_hash = sha256::digest(&plugin_contents);
+                if sha256 != plugin_hash {
+                    return Err(anyhow::anyhow!("The SHA256 hash of the plugin doesn't match the hash within the {CHANGESET_DIRECTORY}/{CHANGESET_DIRECTORY} file"));
+                }
             }
-        }
 
-        let plugin_dir = cache_dir.join(sum);
+            return Ok(plugin_path);
+        }
 
         std::fs::create_dir_all(&plugin_dir)?;
 
-        let plugin_path = plugin_dir.join("plugin.wasm");
+        let response = reqwest::blocking::get(&plugin_url)?;
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "An error occurred whilst downloading the plugin: {}",
+                response.status()
+            ));
+        }
+
+        let body = response.bytes()?;
+        let download_checksum = body.digest();
+
+        let checksum_matches = self
+            .plugin
+            .sha256
+            .as_ref()
+            .map_or(true, |sha256| sha256 == &download_checksum);
+
+        if !checksum_matches {
+            return Err(anyhow::anyhow!("The SHA256 hash of the plugin downloaded doesn't match the hash within the {CHANGESET_DIRECTORY}/{CHANGESET_DIRECTORY} file"));
+        }
 
         std::fs::write(&plugin_path, body)?;
         Ok(plugin_path)
