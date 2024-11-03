@@ -13,11 +13,11 @@
 			"properties": {
 				"url": {
 					"type": "string",
-					"description": "The URL of the plugin to use. As a shorthand for github, you can use the following format: gh:{owner}/{repo}@{version} which translates to https://github.com/owner/repo/releases/download/version/plugin.wasm"
+					"description": "The URL of the plugin to use. As a shorthand for github, you can use the following format: `gh:{owner}/{repo}@{version}` which translates to `https://github.com/owner/repo/releases/download/version/plugin.wasm`"
 				},
 				"sha256": {
 					"type": "string",
-					"description": "The SHA256 hash of the plugin"
+					"description": "The SHA256 hash of the plugin. Set this to ensure the plugin hasn't been tampered with."
 				}
 			}
 		}

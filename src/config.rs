@@ -10,11 +10,9 @@ pub const CONFIG_FILENAME: &str = "config.json";
 
 #[derive(Serialize, Deserialize)]
 pub struct Plugin {
-    #[serde(rename = "versionedFile")]
-    pub versioned_file: PathBuf,
-    /// The URL of the plugin to use. As a shorthand for github, you can use the following format: gh:{owner}/{repo}@{version}
+    /// The URL of the plugin to use. As a shorthand for github, you can use the following format: `gh:{owner}/{repo}@{version}`
     /// ->
-    /// https://github.com/owner/repo/releases/download/version/plugin.wasm
+    /// `https://github.com/owner/repo/releases/download/version/plugin.wasm`
     pub url: String,
     pub sha256: Option<String>,
 }
@@ -30,9 +28,9 @@ impl Plugin {
 }
 
 /// Parses a shorthand github url and returns the full url. Example:
-/// gh:universal-changesets/rust-cargo-plugin@version
+/// `gh:universal-changesets/rust-cargo-plugin@version`
 /// ->
-/// https://github.com/owner/repo/releases/download/version/plugin.wasm
+/// `https://github.com/owner/repo/releases/download/version/plugin.wasm`
 fn parse_shorthand_github_url(url: &str) -> anyhow::Result<String> {
     if !url.starts_with("gh:") {
         return Err(anyhow::anyhow!("invalid url"));
@@ -89,11 +87,13 @@ impl Config {
             }
         }
 
-        let plugin_path = cache_dir.join(sum);
+        let plugin_dir = cache_dir.join(sum);
 
-        std::fs::create_dir_all(&plugin_path)?;
+        std::fs::create_dir_all(&plugin_dir)?;
 
-        std::fs::write(plugin_path.join("plugin.wasm"), self.plugin.url.as_bytes())?;
+        let plugin_path = plugin_dir.join("plugin.wasm");
+
+        std::fs::write(&plugin_path, body)?;
         Ok(plugin_path)
     }
 }
@@ -102,7 +102,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             plugin: Plugin {
-                versioned_file: "".into(),
                 url: "".into(),
                 sha256: None,
             },
@@ -146,7 +145,6 @@ mod tests {
         let plugin = Plugin {
             url: input.to_string(),
             sha256: None,
-            versioned_file: "".into(),
         };
         let result = plugin.get_url().unwrap();
         assert_eq!(result, expected);

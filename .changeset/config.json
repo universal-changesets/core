@@ -1,0 +1,7 @@
+{
+	"$schema": "https://raw.githubusercontent.com/universal-changesets/core/main/changeset-config.schema.json",
+	"plugin": {
+		"url": "gh:universal-changesets/rust-cargo-plugin@1.0.0",
+		"sha256": "e63c184c019d2198b497ceeaefeb59587da138ca7f78edc34e21332a7cc4b18c"
+	}
+}

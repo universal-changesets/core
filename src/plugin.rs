@@ -1,37 +1,27 @@
-use std::path::PathBuf;
-
 use super::config::get_config;
 use extism::*;
 use extism_convert::Json;
 use semver::Version;
 
-pub fn setup_plugin() -> anyhow::Result<(Plugin, PathBuf)> {
+pub fn setup_plugin() -> anyhow::Result<Plugin> {
     let config = get_config()?;
     let cached_plugin_path = config.cache_plugin_from_url()?;
 
     let plugin_file = Wasm::file(cached_plugin_path);
 
-    let versioned_file_path = config.plugin.versioned_file;
+    let current_dir = std::env::current_dir()?;
 
-    if !versioned_file_path.is_file() {
-        return Err(anyhow::anyhow!("versioned file path is not a file"));
-    }
-
-    let versioned_file_parent_path = versioned_file_path.parent().unwrap();
-
-    let manifest = extism::Manifest::new([plugin_file]).with_allowed_path(
-        versioned_file_parent_path.to_str().unwrap().to_string(),
-        versioned_file_parent_path,
-    );
+    let manifest = extism::Manifest::new([plugin_file])
+        // Mounting to the root as the plugin is expected to be in the root of the fs
+        .with_allowed_path(current_dir.to_str().unwrap().to_string(), "/");
 
     let plugin = extism::Plugin::new(manifest, [], true).unwrap();
-    return Ok((plugin, versioned_file_path));
+    return Ok(plugin);
 }
 
 pub fn get_version_via_plugin() -> anyhow::Result<Version> {
-    let (mut plugin, versioned_file_path) = setup_plugin()?;
-    let response =
-        plugin.call::<&str, &str>("get_version", versioned_file_path.to_str().unwrap())?;
+    let mut plugin = setup_plugin()?;
+    let response = plugin.call::<&str, &str>("get_version", "")?;
 
     let parsed_version = Version::parse(response.to_string().as_str())?;
 
@@ -40,15 +30,13 @@ pub fn get_version_via_plugin() -> anyhow::Result<Version> {
 
 #[derive(Debug, serde::Serialize)]
 struct SetVersionRequest {
-    pub path: String,
     pub version: String,
 }
 
 pub fn set_version_via_plugin(version: &Version) -> anyhow::Result<()> {
-    let (mut plugin, versioned_file_path) = setup_plugin()?;
+    let mut plugin = setup_plugin()?;
 
     let request = SetVersionRequest {
-        path: versioned_file_path.to_str().unwrap().to_string(),
         version: version.to_string(),
     };
 
