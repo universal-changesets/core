@@ -128,15 +128,15 @@ mod tests {
     #[rstest]
     #[case(
         "gh:owner/repo@version",
-        "https://github.com/owner/repo/releases/download/version/versionfile.wasm"
+        "https://github.com/owner/repo/releases/download/version/plugin.wasm"
     )]
     #[case(
         "https://github.com/owner/repo/releases/download/version/versionfile.wasm",
         "https://github.com/owner/repo/releases/download/version/versionfile.wasm"
     )]
     #[case(
-        "gh:alex-way/changesets-go-versionfile-plugin@0.0.2",
-        "https://github.com/alex-way/changesets-go-versionfile-plugin/releases/download/0.0.2/versionfile.wasm"
+        "gh:universal-changesets/rust-cargo-plugin@1.0.0",
+        "https://github.com/universal-changesets/rust-cargo-plugin/releases/download/1.0.0/plugin.wasm"
     )]
     fn test_get_url(#[case] input: &str, #[case] expected: &str) {
         let plugin = Plugin {

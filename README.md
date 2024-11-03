@@ -73,10 +73,8 @@ Example config file:
   // if you want to use the latest schema
   "$schema": "https://raw.githubusercontent.com/universal-changesets/core/v1.0.0/changeset-config.schema.json",
   "plugin": {
-    "name": "versionfile",
-    "sha256": "beef1de60035053ad01eff83875999dc9918a65e1cffc006fca95c3bfbe55d70",
-    "url": "https://github.com/universal-changesets/rust-cargo-plugin/releases/download/0.0.2/versionfile.wasm",
-    "versionedFile": ".changeset/version"
+    "sha256": "e63c184c019d2198b497ceeaefeb59587da138ca7f78edc34e21332a7cc4b18c",
+    "url": "gh:universal-changesets/rust-cargo-plugin@1.0.0"
   }
 }
 ```
