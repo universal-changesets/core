@@ -5,4 +5,4 @@ bacon-test:
 	bacon test
 
 install:
-    cargo install --path .
+    cargo install --locked --path .
