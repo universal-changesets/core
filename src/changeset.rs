@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rand::seq::SliceRandom;
+use rand::prelude::*;
 use semver::Version;
 use std::io::Read;
 use std::{fmt::Display, io::Write, path::PathBuf};
@@ -245,7 +245,7 @@ impl ChangeSetExt for Vec<Change> {
 
 pub fn generate_change_name() -> String {
     let parts: Vec<_> = NAMES
-        .choose_multiple(&mut rand::thread_rng(), CHANGE_NAME_PARTS as usize)
+        .choose_multiple(&mut rand::rng(), CHANGE_NAME_PARTS as usize)
         .cloned()
         .collect();
     return parts.join("-");
